@@ -12,30 +12,17 @@ Category:                   Network
 Cabal-Version:              >= 1.6
 Build-Type:                 Simple
 Package-URL:                http://github.com/sw17ch/tuntap
-Extra-Source-Files:         cbits/help.h
 
 Library
-    Build-Depends:          base >= 4 && < 5,
-                            bytestring >= 0.9.1.4 && < 0.10
-    Exposed-Modules:        Network.TUNTAP
+    Build-Depends:          base >= 4 && < 5
+    Exposed-Modules:        
+    Extensions:             ForeignFunctionInterface,
+                            FunctionalDependencies,
+                            MultiParamTypeClasses
+    Build-Tool:             greencard
     GHC-Options:            -Wall
-    CC-Options:             -Wall
-    HS-Source-Dirs:         src
 
-    if os(mingw32)
-        C-Sources:          cbits/help-win.c
-        Extra-Libraries:    Iphlpapi, ws2_32
-        CC-Options:         -D MINGW32
-        CPP-Options:        -DCALLCONV=stdcall
-
-    if os(linux)
-        Build-Depends:      unix >= 2.3.0.0
-        C-Sources:          cbits/help-linux.c
-        CC-Options:         -D LINUX
-        CPP-Options:        -DCALLCONV=ccall
-
-    if os(darwin) || os(freebsd)
-        Build-Depends:      unix >= 2.3.0.0
-        C-Sources:          cbits/help-bsd.c
-        CC-Options:         -D BSD
-        CPP-Options:        -DCALLCONV=ccall
+    if !os(windows)
+        Build-Depends:      unix
+        Other-Modules:      System.Posix.IOCtl
+        HS-Source-Dirs:     src-unix
