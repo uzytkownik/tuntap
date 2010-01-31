@@ -14,15 +14,19 @@ Build-Type:                 Simple
 Package-URL:                http://github.com/sw17ch/tuntap
 
 Library
-    Build-Depends:          base >= 4 && < 5
-    Exposed-Modules:        
+    Build-Depends:          base >= 4 && < 5,
+                            greencard,
+                            network
+    Exposed-Modules:        Network.Interface
     Extensions:             ForeignFunctionInterface,
                             FunctionalDependencies,
                             MultiParamTypeClasses
-    Build-Tool:             greencard
+    Build-Tools:            greencard
     GHC-Options:            -Wall
 
+    Include-Dirs:           .
     if !os(windows)
         Build-Depends:      unix
         Other-Modules:      System.Posix.IOCtl
         HS-Source-Dirs:     src-unix
+        C-Sources:          src-unix/Network/Interface_stub_ffi.c

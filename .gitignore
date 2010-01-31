@@ -1,3 +1,4 @@
 *~
 .*.swp
 dist/
+*_stub_ffi.*
