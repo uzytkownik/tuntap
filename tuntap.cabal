@@ -17,7 +17,8 @@ Library
     Build-Depends:          base >= 4 && < 5,
                             greencard,
                             network
-    Exposed-Modules:        Network.Interface
+    Exposed-Modules:        Network.Interface,
+                            Network.TunTap
     Extensions:             ForeignFunctionInterface,
                             FunctionalDependencies,
                             MultiParamTypeClasses
@@ -30,3 +31,7 @@ Library
         Other-Modules:      System.Posix.IOCtl
         HS-Source-Dirs:     src-unix
         C-Sources:          src-unix/Network/Interface_stub_ffi.c
+
+    if os(linux)
+        HS-Source-Dirs:     src-linux
+        C-Sources:          src-linux/Network/TunTap_stub_ffi.c

@@ -1,0 +1,72 @@
+{-# LANGUAGE ForeignFunctionInterface #-}
+{- |
+Module      : $Header$
+Description : Basic operation on tuntap
+Copyright   : (c) Maciej Piechotka
+License     : BSD3
+
+Stability   : none
+Portability : POSIX
+
+Basic operations for tuntap
+-}
+module Network.TunTap
+  (
+    mkTun,
+    mkTap
+  )
+where
+import Control.Applicative
+import Control.Exception
+import Data.Maybe
+import Foreign.GreenCard
+import Network.Interface
+import System.Posix.IO
+import System.Posix.IOCtl
+import System.IO
+
+%#include <sys/ioctl.h>
+%#include <net/if.h>
+%#include <linux/if_tun.h>
+
+pokeString :: CStringLen -> String -> IO ()
+pokeString (ptr, len) = pokeArray0 0 ptr . take (len - 1) .
+                        map castCharToCChar
+
+%const Int [IFF_TUN, IFF_TAP, IFF_NO_PI]
+
+--foreign import unsafe prim_iF_NAMESIZE :: IO Int
+foreign import ccall unsafe "prim_iF_NAMESIZE" iF_NAMESIZE :: Int
+foreign import ccall unsafe "prim_ifReqSize" ifReqSize :: Int
+foreign import ccall unsafe "prim_ifReqOffset" ifReqOffset :: Int
+
+data IfReqFlags = IfReqFlags Interface CShort
+
+instance Storable IfReqFlags where
+    alignment _ = 4
+    sizeOf _ = ifReqSize
+    peek ptr = IfReqFlags <$> (Interface <$> peekCString (castPtr ptr))
+                          <*> peek (ptr `plusPtr` ifReqOffset)
+    poke ptr (IfReqFlags (Interface n) flag) = do
+      pokeString (castPtr ptr, iF_NAMESIZE - 1) n
+      poke (ptr `plusPtr` ifReqOffset) flag
+
+%const Int [TUNSETIFF]
+
+data TunSetIff = TunSetIff
+
+instance IOControl TunSetIff IfReqFlags where
+    ioctlReq _ = fromIntegral tUNSETIFF
+
+mk_ :: CShort -> Maybe String -> IO (Handle, Interface)
+mk_ f n = do fd <- openFd "/dev/net/tun" ReadWrite Nothing defaultFileFlags
+             (IfReqFlags i _) <- ioctl fd TunSetIff t `onException` closeFd fd
+             h <- fdToHandle fd
+             return $! (h, i)
+          where t = IfReqFlags (Interface (fromMaybe "" n)) f
+
+mkTun :: Maybe String -> IO (Handle, Interface)
+mkTun = mk_ $ fromIntegral $ iFF_TUN .|. iFF_NO_PI
+
+mkTap :: Maybe String -> IO (Handle, Interface)
+mkTap = mk_ $ fromIntegral $ iFF_TAP .|. iFF_NO_PI
