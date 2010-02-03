@@ -135,15 +135,6 @@ data SetIfAddress = SetIfAddress
 instance IOControl SetIfAddress IfReqAddr where
     ioctlReq _ = fromIntegral sIOCSIFADDR
 
--- | Sets IPv4 address
-setIPv4 :: Interface -> HostAddress -> IO ()
-setIPv4 i ha = ioctl_ sock SetIfAddress $ IfReqAddr i $ SockAddrInet 0 ha
-
--- | Gets IPv4 address
-getIPv4 :: Interface -> IO (Maybe HostAddress)
-getIPv4 i = (\(IfReqAddr _ (SockAddrInet _ ha)) -> Just ha) <$>
-            (ioctl sock GetIfAddress $ IfReqAddr i $ SockAddrInet 0 0)
-
 %const Int [SIOCSIFNETMASK, SIOCGIFNETMASK]
 
 data GetIfMask = GetIfMask
@@ -154,14 +145,19 @@ data SetIfMask = SetIfMask
 instance IOControl SetIfMask IfReqAddr where
     ioctlReq _ = fromIntegral sIOCSIFNETMASK
 
--- Sets IPv4 mask
-setIPv4Mask :: Interface -> HostAddress -> IO ()
-setIPv4Mask i ha = ioctl_ sock SetIfMask $ IfReqAddr i $ SockAddrInet 0 ha
+-- Sets IPv4 address and mask
+setIPv4 :: Interface -> (HostAddress, HostAddress) -> IO ()
+setIPv4 i (h, m) = do ioctl_ sock SetIfAddress $ IfReqAddr i ha
+                      ioctl_ sock SetIfMask $ IfReqAddr i ma
+                   where ha = SockAddrInet 0 h
+                         ma = SockAddrInet 0 m
 
--- Gets IPv4 mask
-getIPv4Mask :: Interface -> IO (Maybe HostAddress)
-getIPv4Mask i = (\(IfReqAddr _ (SockAddrInet _ ha)) -> Just ha) <$>
-                (ioctl sock GetIfMask $ IfReqAddr i $ SockAddrInet 0 0)
+-- Gets IPv4 address and mask
+getIPv4 :: Interface -> IO (Maybe (HostAddress, HostAddress))
+getIPv4 i = do (IfReqAddr _ (SockAddrInet _ h) <- ioctl sock GetIfAddress n
+               (IfReqAddr _ (SockAddrInet _ m) <- ioctl sock GetIfMask n
+               return $! Just $! (h, m)
+            where n = IfReqAddr i $ SockAddrInet 0 0
 
 -- Helper
 sock :: Fd
