@@ -10,19 +10,7 @@ Portability : POSIX
 
 Basic operations on interface
 -}
-module Network.Interface
-  (
-    Interface(..),
-    bringUp,
-    bringDown,
-    setMTU,
-    getMTU,
-    setIPv4,
-    getIPv4,
-    setIPv4Mask,
-    getIPv4Mask
-  )
-where
+module Network.Interface.Internal where
 import Control.Applicative
 import Foreign.GreenCard
 import Network.Socket
