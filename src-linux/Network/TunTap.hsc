@@ -18,23 +18,20 @@ module Network.TunTap
 where
 import Control.Exception
 import Data.Maybe
-import Foreign.GreenCard
+import Foreign.C
 import Network.Interface.Internal
 import System.Posix.IO
 import System.Posix.IOCtl
 import System.IO
 
-%#include <sys/ioctl.h>
-%#include <net/if.h>
-%#include <linux/if_tun.h>
-
-%const Int [IFF_TUN, IFF_TAP, IFF_NO_PI]
-%const Int [TUNSETIFF]
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <linux/if_tun.h>
 
 data TunSetIff = TunSetIff
 
 instance IOControl TunSetIff IfReqFlags where
-    ioctlReq _ = fromIntegral tUNSETIFF
+    ioctlReq _ = #const TUNSETIFF
 
 mk_ :: CShort -> Maybe String -> IO (Handle, Interface)
 mk_ f n = do fd <- openFd "/dev/net/tun" ReadWrite Nothing defaultFileFlags
@@ -44,7 +41,7 @@ mk_ f n = do fd <- openFd "/dev/net/tun" ReadWrite Nothing defaultFileFlags
           where t = IfReqFlags (Interface (fromMaybe "" n)) f
 
 mkTun :: Maybe String -> IO (Handle, Interface)
-mkTun = mk_ $ fromIntegral $ iFF_TUN .|. iFF_NO_PI
+mkTun = mk_ #const (IFF_TUN | IFF_NO_PI)
 
 mkTap :: Maybe String -> IO (Handle, Interface)
-mkTap = mk_ $ fromIntegral $ iFF_TAP .|. iFF_NO_PI
+mkTap = mk_ #const (IFF_TUN | IFF_NO_PI)

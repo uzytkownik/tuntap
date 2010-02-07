@@ -19,8 +19,6 @@ module Network.Interface
     getMTU,
     setIPv4,
     getIPv4,
-    setIPv4Mask,
-    getIPv4Mask,
   )
 where
 import Network.Interface.Internal

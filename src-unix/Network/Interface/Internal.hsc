@@ -12,56 +12,45 @@ Basic operations on interface
 -}
 module Network.Interface.Internal where
 import Control.Applicative
-import Foreign.GreenCard
+import Foreign
+import Foreign.C
 import Network.Socket
 import Network.Socket.Internal
 import System.Posix
 import System.Posix.IOCtl
 
-%#include <net/if.h>
-%#include <sys/ioctl.h>
-%#include <stddef.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <stddef.h>
 
 -- | Represents an interface
-newtype Interface = Interface String
+newtype Interface = Interface {interfaceName :: String}
 
-pokeString :: CStringLen -> String -> IO ()
-pokeString (ptr, len) = pokeArray0 0 ptr . take (len - 1) .
-                        map castCharToCChar
+instance Storable Interface where
+    alignment _ = 4
+    sizeOf _ = #const IF_NAMESIZE
+    peek = fmap Interface . peekCString . castPtr
+    poke ptr = pokeArray0 0 (castPtr ptr) . take (#const IF_NAMESIZE - 1) .
+               map castCharToCChar . interfaceName
 
 -- Flags
 data IfReqFlags = IfReqFlags Interface CShort
 
-%const Int [IF_NAMESIZE]
-
-%fun ifReqSize :: Int
-%code size = sizeof(struct ifreq);
-%result (int size)
-
-%fun ifReqOffset :: Int
-%code offset = offsetof(struct ifreq, ifr_ifru);
-%result (int offset)
-
 instance Storable IfReqFlags where
     alignment _ = 4
-    sizeOf _ = ifReqSize
-    peek ptr = IfReqFlags <$> (Interface <$> peekCString (castPtr ptr))
-                          <*> peek (ptr `plusPtr` ifReqOffset)
-    poke ptr (IfReqFlags (Interface n) flag) = do
-      pokeString (castPtr ptr, iF_NAMESIZE - 1) n
-      poke (ptr `plusPtr` ifReqOffset) flag
-
-%const Int [SIOCGIFFLAGS, SIOCSIFFLAGS]
+    sizeOf _ = #size struct ifreq
+    peek ptr = IfReqFlags <$> (#peek struct ifreq, ifr_name) ptr
+                          <*> (#peek struct ifreq, ifr_flags) ptr
+    poke ptr (IfReqFlags i f) = (#poke struct ifreq, ifr_name) ptr i >>
+                                (#poke struct ifreq, ifr_flags) ptr f
 
 data GetIfFlags = GetIfFlags
 instance IOControl GetIfFlags IfReqFlags where
-    ioctlReq _ = fromIntegral sIOCGIFFLAGS
+    ioctlReq _ = #const SIOCGIFFLAGS
 
 data SetIfFlags = SetIfFlags
 instance IOControl SetIfFlags IfReqFlags where
-    ioctlReq _ = fromIntegral sIOCSIFFLAGS
-
-%const Int [IFF_UP]
+    ioctlReq _ = #const SIOCSIFFLAGS
 
 setFlag :: Int -> Interface -> IO ()
 setFlag g i = do let ifreq = IfReqFlags i 0
@@ -77,33 +66,30 @@ unsetFlag g i = do let ifreq = IfReqFlags i 0
 
 -- | Brings up the interface
 bringUp :: Interface -> IO ()
-bringUp = setFlag iFF_UP
+bringUp = setFlag #const IFF_UP
 
 -- | Brings down the interface
 bringDown :: Interface -> IO ()
-bringDown = unsetFlag iFF_UP
+bringDown = unsetFlag #const IFF_UP
 
 -- MTU
 data IfReqMTU = IfReqMTU Interface CInt
 
 instance Storable IfReqMTU where
     alignment _ = 4
-    sizeOf _ = ifReqSize
-    peek ptr = IfReqMTU <$> (Interface <$> peekCString (castPtr ptr))
-                        <*> peek (ptr `plusPtr` ifReqOffset)
-    poke ptr (IfReqMTU (Interface n) mtu) = do
-      pokeString (castPtr ptr, iF_NAMESIZE - 1) n
-      poke (ptr `plusPtr` ifReqOffset) mtu
-
-%const Int [SIOCGIFMTU, SIOCSIFMTU]
+    sizeOf _ = #size struct ifreq
+    peek ptr = IfReqMTU <$> (#peek struct ifreq, ifr_name) ptr
+                        <*> (#peek struct ifreq, ifr_mtu) ptr
+    poke ptr (IfReqMTU i mtu) = (#poke struct ifreq, ifr_name) ptr i >>
+                                (#poke struct ifreq, ifr_mtu) ptr mtu
 
 data GetIfMTU = GetIfMTU
 instance IOControl GetIfMTU IfReqMTU where
-    ioctlReq _ = fromIntegral sIOCGIFMTU
+    ioctlReq _ = #const SIOCGIFMTU
 
 data SetIfMTU = SetIfMTU
 instance IOControl SetIfMTU IfReqMTU where
-    ioctlReq _ = fromIntegral sIOCSIFMTU
+    ioctlReq _ = #const SIOCSIFMTU
 
 -- | Sets the MTU 
 setMTU :: Interface -> Int -> IO ()
@@ -118,47 +104,44 @@ getMTU i = (\(IfReqMTU _ mtu) -> fromIntegral mtu) <$>
 data IfReqAddr = IfReqAddr Interface SockAddr
 instance Storable IfReqAddr where
     alignment _ = 4
-    sizeOf _ = ifReqSize
-    peek ptr = IfReqAddr <$> (Interface <$> peekCString (castPtr ptr))
-                         <*> peekSockAddr (ptr `plusPtr` ifReqOffset)
-    poke ptr (IfReqAddr (Interface n) addr) = do
-      pokeString (castPtr ptr, iF_NAMESIZE - 1) n
-      pokeSockAddr (ptr `plusPtr` ifReqOffset) addr
-
-%const Int [SIOCGIFADDR, SIOCSIFADDR]
+    sizeOf _ = #size struct ifreq
+    peek ptr = IfReqAddr <$> (#peek struct ifreq, ifr_name) ptr
+                         <*> peekSockAddr (ptr `plusPtr` offset)
+               where offset = #offset struct ifreq, ifr_addr
+    poke ptr (IfReqAddr i a) = (#poke struct ifreq, ifr_name) ptr i >>
+                               pokeSockAddr (ptr `plusPtr` offset) a
+                               where offset = #offset struct ifreq, ifr_addr
 
 data GetIfAddress = GetIfAddress
 instance IOControl GetIfAddress IfReqAddr where
-    ioctlReq _ = fromIntegral sIOCGIFADDR
+    ioctlReq _ = #const SIOCGIFADDR
 
 data SetIfAddress = SetIfAddress
 instance IOControl SetIfAddress IfReqAddr where
-    ioctlReq _ = fromIntegral sIOCSIFADDR
-
-%const Int [SIOCSIFNETMASK, SIOCGIFNETMASK]
+    ioctlReq _ = #const SIOCSIFADDR
 
 data GetIfMask = GetIfMask
 instance IOControl GetIfMask IfReqAddr where
-    ioctlReq _ = fromIntegral sIOCGIFNETMASK
+    ioctlReq _ = #const SIOCSIFNETMASK
 
 data SetIfMask = SetIfMask
 instance IOControl SetIfMask IfReqAddr where
-    ioctlReq _ = fromIntegral sIOCSIFNETMASK
+    ioctlReq _ = #const SIOCGIFNETMASK
 
--- Sets IPv4 address and mask
+-- | Sets IPv4 address and mask
 setIPv4 :: Interface -> (HostAddress, HostAddress) -> IO ()
 setIPv4 i (h, m) = do ioctl_ sock SetIfAddress $ IfReqAddr i ha
                       ioctl_ sock SetIfMask $ IfReqAddr i ma
                    where ha = SockAddrInet 0 h
                          ma = SockAddrInet 0 m
 
--- Gets IPv4 address and mask
+-- | Gets IPv4 address and mask
 getIPv4 :: Interface -> IO (Maybe (HostAddress, HostAddress))
-getIPv4 i = do (IfReqAddr _ (SockAddrInet _ h) <- ioctl sock GetIfAddress n
-               (IfReqAddr _ (SockAddrInet _ m) <- ioctl sock GetIfMask n
+--getIPv4 i = undefined i
+getIPv4 i = do (IfReqAddr _ (SockAddrInet _ h)) <- ioctl sock GetIfAddress n
+               (IfReqAddr _ (SockAddrInet _ m)) <- ioctl sock GetIfMask n
                return $! Just $! (h, m)
             where n = IfReqAddr i $ SockAddrInet 0 0
-
 -- Helper
 sock :: Fd
 sock = Fd $ fdSocket $ unsafePerformIO $ socket AF_INET Datagram 0
