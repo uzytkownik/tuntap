@@ -33,3 +33,6 @@ Library
 
     if os(linux)
         HS-Source-Dirs:     src-linux
+
+    if os(windows)
+        HS-Source-Dirs:     src-windows
